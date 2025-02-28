@@ -52,7 +52,11 @@ const getPlanById = async (planId) => {
 		include: {
 			planDetails: {
 				include: {
-					activities: true,
+					activities: {
+						select: {
+							destination: true,
+						},
+					},
 					hotel: {
 						include: {
 							hotelDetail: true,
@@ -86,7 +90,11 @@ const getPlanDetail = async (planDetailId) => {
 			id: planDetailId,
 		},
 		include: {
-			activities: true,
+			activities: {
+				select: {
+					planDetail: true,
+				},
+			},
 			hotel: true,
 		},
 	});
@@ -197,6 +205,76 @@ const generateItinerary = async (planId) => {
 			`${config.machine_learning.baseUrl}/itinerary`,
 			data
 		);
+		const categoryNames = [
+			...new Set(
+				Object.values(response.data)
+					.flat()
+					.map((d) => d.category)
+			),
+		];
+
+		const categories = await prisma.category.findMany({
+			where: { name: { in: categoryNames } },
+		});
+
+		const travelDay = travelData.planDetails;
+		const categoryMap = Object.fromEntries(
+			categories.map((c) => [c.name, c.id])
+		);
+		const travelDayMap = Object.fromEntries(
+			travelDay.map((td) => [td.day, td.id])
+		);
+
+		const destinations = [];
+		const activities = [];
+		Object.entries(response.data).forEach(([key, destinationsList]) => {
+			const dayNumber = parseInt(key.replace('day', ''), 10);
+			const planDetailId = travelDayMap[dayNumber];
+
+			destinationsList.forEach(
+				({ place_name, description, time, cost, category, address }) => {
+					if (!categoryMap[category]) return;
+
+					const destinationId = `temp-${place_name}`;
+					destinations.push({
+						id: destinationId,
+						name: place_name,
+						description: description,
+						time: time,
+						address: address,
+						cost: cost,
+						categoryId: categoryMap[category],
+					});
+
+					activities.push({
+						planDetailId,
+						destinationId,
+					});
+				}
+			);
+		});
+
+		await prisma.destination.createMany({
+			data: destinations.map(({ id, ...d }) => d),
+		});
+
+		const newDestinations = await prisma.destination.findMany({
+			where: {
+				name: { in: destinations.map((d) => d.name) },
+			},
+		});
+
+		const destinationMap = Object.fromEntries(
+			newDestinations.map((d) => [d.name, d.id])
+		);
+
+		const finalActivities = activities.map((a) => ({
+			...a,
+			destinationId: destinationMap[a.destinationId.replace('temp-', '')],
+		}));
+
+		await prisma.activity.createMany({ data: finalActivities });
+
 		return response.data;
 	} catch (error) {
 		console.log(error);

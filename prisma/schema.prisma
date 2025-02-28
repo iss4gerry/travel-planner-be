@@ -112,7 +112,6 @@ model PlanDetail {
   planId      String
   plan        Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
   activities  Activity[]
-  destination Destination[]  
   hotel       HotelPlan[]
 }
 
@@ -127,26 +126,27 @@ model HotelPlan {
 }
 
 model Activity {
-  id            String      @id @default(uuid())
-  name          String
-  description   String
-  location      String
-  cost          Float
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  planDetailId  String
-  planDetail    PlanDetail   @relation(fields: [planDetailId], references: [id], onDelete: Cascade)
+  id                  String         @id @default(uuid())
+  planDetailId      String
+  planDetail        PlanDetail   @relation(fields: [planDetailId], references: [id], onDelete: Cascade) 
+  destinationId       String
+  destination         Destination    @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 }
 
 model Destination {
   id            String      @id @default(uuid())
-  name          String      
+  name          String
+  description   String
   address       String
-  description   String 
-  planDetailId  String
-  planDetail    PlanDetail   @relation(fields: [planDetailId], references: [id], onDelete: Cascade)
+  cost          String
+  time          String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   categoryId    String
   category    Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  activity    Activity[]
 }
 
 model Category {
